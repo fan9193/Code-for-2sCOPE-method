@@ -14,22 +14,9 @@
 # SEE https://www.r-bloggers.com/how-to-install-packages-on-r-screenshots/
 # FOR INSTRUCTIONS HOW TO INSTALL A PACKAGE
 
-library(neuralnet)
-library(MASS)
-library(glmnet)
-library(nlme)
-library(EnvStats)
-library(pls)
-library(nortest)
-library(GoFKernel)
-library(mvtnorm)
+
 library(rms)
 library(data.table)
-library(multiColl)
-library(olsrr)
-library(aod)
-library(scales)
-
 
 ## PART 1: R function of 2sCOPE
 rm(list = ls())
@@ -95,37 +82,36 @@ tscope <- function(formula, data){
 
 
 ## PART 2: Example of how to use the function above
+##load your data
+data = read.csv(file='.../data.csv')
+data = as.data.frame(data)
+#estimate using real data
+formula = 'y~p+w|p' #p is endogeneous variable
+tscope_res <- tscope(formula=formula, data=data) #true value of [1,p,w] is [1,1,-1]
+
+##use bootstrap for standard error
 nsim = 1000 #repeat 1000 times
 nendox = 1 # number of endogenous variables
 nw = 1 # number of exogenous variables
 tscope.res = matrix(0,nsim,2*nendox+nw+2)
 for (m in 1:nsim){
   print(m)
+
+  n = nrow(data)
+  select = sample(1:n,replace=TRUE)
+  select = sort(select)
+  data_new = data[select,]
   
-  #simulation data: (if you use your own dataset, directly put your data in line 120)
-  n = 1000
-  rpe = 0.5
-  rpw = 0.5
-  temp <- rmvnorm(n, mean=c(0,0,0), sigma=cbind(c(1,rpw,rpe),
-                                                c(rpw,1,0),
-                                                c(rpe,0,1)))
-
-  #p=qnormMix(pnorm(temp[,1]), mean1 = -1, sd1 = 1, mean2 = 1, sd2 = 1, p.mix = 0.5) ## mixture normal
-  p = qt(pnorm(temp[,1]), df=10, ncp=0, lower.tail = TRUE, log.p = FALSE)
-  w=qexp(pnorm(temp[,2]))
-  y <- 1 + p - w + temp[,3]
-
-  data = as.data.frame(cbind(y,p,w)) 
   formula = 'y~p+w|p' #p is endogeneous variable
-  res <- tscope(formula=formula, data=data)
+  res <- tscope(formula=formula, data=data_new)
   tscope.res[m,] = c(res)
 }
 
-## report average estimates and sd across 1000 datasets
+#report average estimates and sd across 1000 bootstrap datasets
 tscope.tab = matrix(0,2,ncol(tscope.res))
-colnames(tscope.tab) = c('Intercept','P','W','Rho','sdError')
-tscope.tab[1,] = apply(tscope.res,2,mean) #average estimates across 1000 data sets
-tscope.tab[2,] = apply(tscope.res,2,sd) #average sd across 1000 data sets
+colnames(tscope.tab) = c('Intercept','P','W','Rho','sdError') #note: if you have multiple P and W, you need to change the name here.
+tscope.tab[1,] = apply(tscope.res,2,mean) #average estimates across 1000 bootstrap data sets
+tscope.tab[2,] = apply(tscope.res,2,sd) #average sd across 1000 bootstrap data sets
 
 tscope.tab
 
